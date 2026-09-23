@@ -32,6 +32,9 @@ env:
   # One named debug variant. `bundle` builds every flavor x build type, which
   # ran LibreTube and Lawnchair past the 90-minute timeout and OOM-killed Signal.
   GRADLE_TASK: ":app:assembleMinimalDebug"
+  # Blank = latest stable. Pin for Dart-2-era modules (InjuredAndroid's
+  # flutter_module declares sdk <3.0.0, which Dart 3 refuses).
+  FLUTTER_VERSION: ""
 
 permissions:
   contents: read
@@ -102,6 +105,7 @@ jobs:
         if: steps.detect.outputs.flutter == 'true'
         with:
           channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
 
       # Flutter add-to-app modules refuse to configure until `pub get` has
       # generated their .android/ scaffolding and local.properties.
@@ -127,6 +131,15 @@ jobs:
           # Some apps read sdk.dir from local.properties and fail without it
           # (mastodon-android). Never overwrite one the repo committed.
           [ -f local.properties ] || echo "sdk.dir=$ANDROID_HOME" > local.properties
+
+          # Apps that apply the Google Services plugin but keep the real config
+          # out of git ship a mock for CI (home-assistant-android). Use it.
+          mock=.github/mock-google-services.json
+          if [ -f "$mock" ]; then
+            for m in app wear automotive; do
+              [ -d "$m" ] && [ ! -f "$m/google-services.json" ] && cp "$mock" "$m/google-services.json"
+            done
+          fi
 
           TOOLCHAINS="-Dorg.gradle.java.installations.fromEnv=JAVA_HOME_8_X64,JAVA_HOME_11_X64,JAVA_HOME_17_X64,JAVA_HOME_21_X64"
           if [ -n "$WRAPPER_MISSING" ]; then
